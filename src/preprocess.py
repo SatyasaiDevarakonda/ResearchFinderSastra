@@ -51,6 +51,45 @@ def extract_author_names(authors_str):
     return names
 
 
+def extract_countries_from_affiliations(affiliations_str):
+    """Extract country names from affiliation string."""
+    if pd.isna(affiliations_str) or not isinstance(affiliations_str, str):
+        return []
+    
+    # Common country patterns in affiliations
+    country_patterns = [
+        r'\bIndia\b', r'\bUSA\b', r'\bUnited States\b', r'\bUK\b', r'\bUnited Kingdom\b',
+        r'\bChina\b', r'\bJapan\b', r'\bGermany\b', r'\bFrance\b', r'\bCanada\b',
+        r'\bAustralia\b', r'\bSingapore\b', r'\bMalaysia\b', r'\bThailand\b',
+        r'\bSouth Korea\b', r'\bNetherlands\b', r'\bSweden\b', r'\bSwitzerland\b',
+        r'\bItaly\b', r'\bSpain\b', r'\bBrazil\b', r'\bMexico\b', r'\bRussia\b',
+        r'\bSouth Africa\b', r'\bEgypt\b', r'\bSaudi Arabia\b', r'\bUAE\b',
+        r'\bNew Zealand\b', r'\bIreland\b', r'\bBelgium\b', r'\bAustria\b',
+        r'\bDenmark\b', r'\bNorway\b', r'\bFinland\b', r'\bPoland\b',
+        r'\bTurkey\b', r'\bIran\b', r'\bPakistan\b', r'\bBangladesh\b',
+        r'\bSri Lanka\b', r'\bNepal\b', r'\bIndonesia\b', r'\bPhilippines\b',
+        r'\bVietnam\b', r'\bIsrael\b', r'\bGreece\b', r'\bPortugal\b'
+    ]
+    
+    countries = []
+    for pattern in country_patterns:
+        matches = re.findall(pattern, affiliations_str, re.IGNORECASE)
+        for match in matches:
+            # Normalize country name
+            country = match.strip()
+            if country.lower() in ['usa', 'united states']:
+                country = 'United States'
+            elif country.lower() in ['uk', 'united kingdom']:
+                country = 'United Kingdom'
+            else:
+                country = country.title()
+            
+            if country not in countries:
+                countries.append(country)
+    
+    return countries
+
+
 def extract_keywords_from_text(text, min_length=3):
     """Extract meaningful keywords from text (abstract, title, keywords)."""
     if not text or pd.isna(text):
@@ -211,6 +250,15 @@ def build_publications_index(df):
         # Combine all keywords
         all_keywords = list(set(author_kws + index_kws + abstract_keywords[:50] + title_keywords))
         
+        # Extract document type
+        doc_type = clean_text(row.get('Document Type', 'Article'))
+        if not doc_type:
+            doc_type = 'Article'
+        
+        # Extract countries from affiliations
+        affiliations = clean_text(row.get('Affiliations', ''))
+        countries = extract_countries_from_affiliations(affiliations)
+        
         publications[pub_id] = {
             'pub_id': pub_id,
             'title': title,
@@ -222,11 +270,13 @@ def build_publications_index(df):
             'source': clean_text(row.get('Source title', '')),
             'citations': int(row.get('Cited by', 0)),
             'doi': clean_text(row.get('DOI', '')),
-            'affiliations': clean_text(row.get('Affiliations', '')),
+            'affiliations': affiliations,
             'author_keywords': author_kws,
             'index_keywords': index_kws,
             'all_keywords': all_keywords,
             'abstract_ngrams': abstract_ngrams[:100],  # Limit ngrams
+            'document_type': doc_type,
+            'countries': countries,
         }
     
     return publications
@@ -253,6 +303,7 @@ def build_author_profiles(df, publications, author_id_to_names):
         total_citations = 0
         all_keywords = []
         affiliations = set()
+        citation_list = []
         
         for pub_id in pub_ids:
             pub = publications[pub_id]
@@ -264,9 +315,12 @@ def build_author_profiles(df, publications, author_id_to_names):
                 'authors': pub['authors'],
                 'source': pub['source'],
                 'citations': pub['citations'],
-                'keywords': ', '.join(pub['author_keywords'][:10])
+                'keywords': ', '.join(pub['author_keywords'][:10]),
+                'document_type': pub['document_type'],
+                'countries': pub['countries'],
             })
             total_citations += pub['citations']
+            citation_list.append(pub['citations'])
             all_keywords.extend(pub['all_keywords'])
             if pub['affiliations']:
                 affiliations.add(pub['affiliations'])
@@ -287,7 +341,8 @@ def build_author_profiles(df, publications, author_id_to_names):
             'pub_ids': pub_ids,
             'top_keywords': top_keywords,
             'affiliations': list(affiliations)[:5],
-            'all_keywords_set': set(k for k, _ in top_keywords)
+            'all_keywords_set': set(k for k, _ in top_keywords),
+            'citation_list': citation_list,  # For histogram
         }
     
     return author_profiles

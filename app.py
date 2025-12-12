@@ -37,6 +37,9 @@ st.markdown("""
     .results-table { background: white; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .table-header { font-weight: bold; color: #1e40af; padding: 0.5rem; border-bottom: 2px solid #3B82F6; margin-bottom: 0.5rem; }
     .back-button { margin-bottom: 1rem; }
+    .collab-badge { display: inline-block; padding: 0.3rem 0.7rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600; margin: 0.2rem; }
+    .national-badge { background: #dbeafe; color: #1e40af; }
+    .international-badge { background: #fef3c7; color: #92400e; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,7 +125,70 @@ def display_profile(profile: dict, engine=None):
             for aff in profile['affiliations'][:5]:
                 st.write(f"• {aff}")
     
+    # NEW: Citation Histogram
+    st.divider()
+    st.subheader("📊 Citation Distribution")
+    hist_data = engine.get_citation_histogram_data(author_id)
+    
+    if hist_data['citation_list']:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Publications", hist_data['total_pubs'])
+        col2.metric("Average Citations", f"{hist_data['avg_citations']:.1f}")
+        col3.metric("Max Citations", hist_data['max_citations'])
+        
+        # Create DataFrame for bar chart
+        df_hist = pd.DataFrame({
+            'Citation Range': hist_data['bins'],
+            'Number of Publications': hist_data['counts']
+        })
+        st.bar_chart(df_hist.set_index('Citation Range'))
+    else:
+        st.info("No citation data available for this author")
+    
+    # NEW: National vs International Collaboration
+    st.divider()
+    st.subheader("🤝 Collaboration Analysis")
+    collab_data = engine.get_national_international_collab(author_id)
+    
+    if collab_data['total'] > 0:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 🇮🇳 National Collaborations")
+            st.metric("", collab_data['national'])
+            percentage = (collab_data['national'] / collab_data['total'] * 100) if collab_data['total'] > 0 else 0
+            st.caption(f"{percentage:.1f}% of all collaborations")
+        
+        with col2:
+            st.markdown("### 🌍 International Collaborations")
+            st.metric("", collab_data['international'])
+            percentage = (collab_data['international'] / collab_data['total'] * 100) if collab_data['total'] > 0 else 0
+            st.caption(f"{percentage:.1f}% of all collaborations")
+        
+        # Country-wise breakdown
+        st.markdown("### 🗺️ Country-Wise Collaboration (India with Other Countries)")
+        country_data = engine.get_country_collaboration_data(author_id)
+        
+        if country_data['india_collabs']:
+            # Create DataFrame for visualization
+            df_countries = pd.DataFrame(
+                list(country_data['india_collabs'].items()),
+                columns=['Country', 'Collaborations']
+            ).sort_values('Collaborations', ascending=False).head(10)
+            
+            st.bar_chart(df_countries.set_index('Country'))
+            
+            # Show top countries in table
+            with st.expander("📋 View All Collaborating Countries"):
+                for country, count in country_data['top_countries']:
+                    st.write(f"**{country}**: {count} joint publications with India")
+        else:
+            st.info("No international collaboration data available")
+    else:
+        st.info("No collaboration data available for this author")
+    
     publications = profile.get('publications', [])
+    st.divider()
     st.subheader(f"📚 Publications ({len(publications)})")
     
     if not publications:
@@ -130,10 +196,22 @@ def display_profile(profile: dict, engine=None):
     else:
         # Show first 20 publications
         for idx, pub in enumerate(publications[:20]):
+            collab_type = 'National' if pub.get('countries') and all(c.lower() == 'india' for c in pub['countries']) else 'International' if pub.get('countries') else 'Unknown'
+            badge_class = 'national-badge' if collab_type == 'National' else 'international-badge'
+            
             with st.expander(f"📄 {pub.get('title', 'Untitled')} ({pub.get('year', 'N/A')})"):
+                # Show collaboration type badge
+                if collab_type != 'Unknown':
+                    st.markdown(f'<span class="collab-badge {badge_class}">{collab_type} Collaboration</span>', unsafe_allow_html=True)
+                
                 st.write(f"**Authors:** {pub.get('authors', 'N/A')}")
                 st.write(f"**Source:** {pub.get('source', 'N/A')}")
                 st.write(f"**Citations:** {pub.get('citations', 0)}")
+                st.write(f"**Document Type:** {pub.get('document_type', 'N/A')}")
+                
+                if pub.get('countries'):
+                    st.write(f"**Countries:** {', '.join(pub['countries'])}")
+                
                 if pub.get('keywords'):
                     st.write(f"**Keywords:** {pub['keywords']}")
                 
@@ -232,11 +310,12 @@ def main():
         st.info("ℹ️ Add MISTRAL_API_KEY to Streamlit Secrets for AI features")
 
     # Main tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🔍 Keyword Search",
         "🎯 Skill-Based Search", 
         "👤 Author/ID Lookup",
-        "📊 RAG Analysis"
+        "📊 RAG Analysis",
+        "📈 Analytics"
     ])
     
     # ==================== TAB 1: KEYWORD SEARCH ====================
@@ -263,6 +342,28 @@ def main():
                     st.write("**Keywords used:**")
                     kw_html = " ".join([f'<span class="keyword-tag">{k}</span>' for k in results['keywords_used'][:20]])
                     st.markdown(kw_html, unsafe_allow_html=True)
+                
+                # NEW: Document Type Distribution
+                if results.get('document_type_dist'):
+                    st.divider()
+                    st.subheader("📄 Document Type Distribution")
+                    
+                    doc_dist = results['document_type_dist']
+                    df_doc_types = pd.DataFrame(
+                        list(doc_dist.items()),
+                        columns=['Document Type', 'Count']
+                    ).sort_values('Count', ascending=False)
+                    
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.bar_chart(df_doc_types.set_index('Document Type'))
+                    
+                    with col2:
+                        st.write("**Distribution:**")
+                        for doc_type, count in df_doc_types.values:
+                            percentage = (count / results['total_matching_pubs'] * 100) if results['total_matching_pubs'] > 0 else 0
+                            st.write(f"**{doc_type}**: {count} ({percentage:.1f}%)")
         
         # Display results if they exist
         if st.session_state.last_search_results and 'results' in st.session_state.last_search_results:
@@ -542,6 +643,141 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
                     st.markdown("---")
+
+    # ==================== TAB 5: ANALYTICS ====================
+    with tab5:
+        st.subheader("📈 Research Analytics Dashboard")
+        
+        # Create sub-tabs for different analytics (REMOVED PUBLICATION TRENDS AND COLLABORATIONS)
+        analytics_tab1, analytics_tab2, analytics_tab3 = st.tabs([
+            "🏷️ Top Keywords",
+            "👥 Active Researchers",
+            "📊 Keyword Trends"
+        ])
+        
+        # ===== ANALYTICS TAB 1: Top Keywords =====
+        with analytics_tab1:
+            st.markdown("### 🏷️ Top Research Keywords at SASTRA")
+            
+            top_keywords = engine.get_top_keywords(limit=20)
+            
+            if top_keywords:
+                # Create bar chart
+                df_keywords = pd.DataFrame(top_keywords, columns=['Keyword', 'Count'])
+                df_top10 = df_keywords.head(10)
+                
+                st.bar_chart(df_top10.set_index('Keyword'))
+                
+                # Show table with all 20
+                st.markdown("**📋 Top 20 Keywords:**")
+                
+                # Display in 2 columns
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**Rank 1-10:**")
+                    for idx, (kw, count) in enumerate(top_keywords[:10], 1):
+                        st.write(f"{idx}. **{kw}** - {count} occurrences")
+                
+                with col2:
+                    st.markdown("**Rank 11-20:**")
+                    for idx, (kw, count) in enumerate(top_keywords[10:20], 11):
+                        st.write(f"{idx}. **{kw}** - {count} occurrences")
+        
+        # ===== ANALYTICS TAB 2: Most Active Authors =====
+        with analytics_tab2:
+            st.markdown("### 👥 Most Active Researchers")
+            
+            active_authors = engine.get_most_active_authors(limit=15)
+            
+            if active_authors:
+                # Create DataFrame
+                df_authors = pd.DataFrame(active_authors)
+                df_top10 = df_authors.head(10)
+                
+                # Horizontal bar chart
+                st.markdown("#### 📊 Top 10 by Publication Count")
+                df_chart = df_top10[['name', 'pub_count']].set_index('name')
+                st.bar_chart(df_chart)
+                
+                # Detailed table
+                st.markdown("#### 📋 Detailed Leaderboard")
+                
+                for idx, author in enumerate(active_authors, 1):
+                    with st.expander(f"#{idx} {author['name']} - {author['pub_count']} publications"):
+                        col1, col2 = st.columns([2, 3])
+                        
+                        with col1:
+                            st.write(f"**Author ID:** `{author['author_id']}`")
+                            st.write(f"**Publications:** {author['pub_count']}")
+                            st.write(f"**Citations:** {author['total_citations']}")
+                        
+                        with col2:
+                            st.write("**Top Research Areas:**")
+                            for kw in author['top_keywords']:
+                                st.markdown(f'<span class="skill-tag">{kw}</span>', unsafe_allow_html=True)
+                        
+                        if st.button("View Full Profile", key=f"analytics_profile_{idx}"):
+                            st.session_state.view_mode = 'profile'
+                            st.session_state.viewing_author_id = author['author_id']
+                            st.session_state.viewing_author_name = None
+                            st.rerun()
+        
+        # ===== ANALYTICS TAB 3: Keyword Trends Over Time =====
+        with analytics_tab3:
+            st.markdown("### 📊 Keyword Trend Analysis")
+            st.caption("Track how specific research topics have evolved over time")
+            
+            keyword_input = st.text_input(
+                "Enter a keyword to track:",
+                placeholder="e.g., machine learning, deep learning, neural networks",
+                key="trend_keyword"
+            )
+            
+            if st.button("📈 Analyze Trend", key="analyze_trend"):
+                if keyword_input.strip():
+                    with st.spinner("Analyzing keyword trend..."):
+                        trend_data = engine.get_keyword_trend_over_time(keyword_input)
+                    
+                    if trend_data['years']:
+                        st.success(f"Found **{trend_data['total_publications']}** publications containing '{keyword_input}'")
+                        
+                        # Create line chart
+                        df_trend = pd.DataFrame({
+                            'Year': trend_data['years'],
+                            'Publications': trend_data['counts']
+                        })
+                        
+                        st.line_chart(df_trend.set_index('Year'))
+                        
+                        # Statistics
+                        col1, col2, col3, col4 = st.columns(4)
+                        col1.metric("Total Publications", trend_data['total_publications'])
+                        col2.metric("Years Covered", len(trend_data['years']))
+                        col3.metric("Peak Year", max(trend_data['data'].items(), key=lambda x: x[1])[0])
+                        col4.metric("Peak Count", max(trend_data['counts']))
+                        
+                        # Trend analysis
+                        if len(trend_data['years']) >= 3:
+                            recent_avg = sum(trend_data['counts'][-3:]) / 3
+                            early_avg = sum(trend_data['counts'][:3]) / 3
+                            
+                            if recent_avg > early_avg * 1.5:
+                                st.info("📈 **Trending UP** - This topic is gaining momentum at SASTRA!")
+                            elif recent_avg < early_avg * 0.5:
+                                st.warning("📉 **Declining** - This topic is receiving less attention recently")
+                            else:
+                                st.success("➡️ **Stable** - Consistent research activity over time")
+                        
+                        # Year-by-year breakdown
+                        with st.expander("📅 Year-by-Year Breakdown"):
+                            for year, count in sorted(trend_data['data'].items(), reverse=True):
+                                st.write(f"**{year}:** {count} publications")
+                    else:
+                        st.warning(f"No publications found containing the keyword '{keyword_input}'")
+                        st.info("💡 Try different variations or related terms")
+                else:
+                    st.warning("Please enter a keyword")
 
     st.divider()
     st.caption("SASTRA Research Finder | Author ID-Based | Mistral AI")

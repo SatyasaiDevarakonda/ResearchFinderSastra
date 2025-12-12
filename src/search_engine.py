@@ -171,7 +171,8 @@ class SearchEngine:
                 'total': 0,
                 'results': [],
                 'keywords_used': [],
-                'total_matching_pubs': 0
+                'total_matching_pubs': 0,
+                'document_type_dist': {}
             }
         
         # Collect publication scores
@@ -211,6 +212,14 @@ class SearchEngine:
         
         matching_pub_ids = set(pub_scores.keys())
         
+        # Calculate document type distribution
+        doc_type_dist = defaultdict(int)
+        for pub_id in matching_pub_ids:
+            pub = self.publications.get(pub_id)
+            if pub:
+                doc_type = pub.get('document_type', 'Unknown')
+                doc_type_dist[doc_type] += 1
+        
         for pub_id, score in pub_scores.items():
             pub = self.publications.get(pub_id)
             if not pub:
@@ -249,7 +258,8 @@ class SearchEngine:
             'total': len(results),
             'results': results,
             'keywords_used': keywords,
-            'total_matching_pubs': len(matching_pub_ids)
+            'total_matching_pubs': len(matching_pub_ids),
+            'document_type_dist': dict(doc_type_dist)
         }
     
     def search_by_skills(self, skills: List[str], max_results: int = 100) -> Dict[str, Any]:
@@ -424,6 +434,216 @@ class SearchEngine:
         context.sort(key=lambda x: (x['citations'], x['year']), reverse=True)
         
         return context[:max_abstracts]
+    
+    # ============ NEW ANALYTICS METHODS ============
+    
+    def get_citation_histogram_data(self, author_id: str) -> Dict[str, Any]:
+        """Get citation histogram data for an author."""
+        profile = self.search_by_author_id(author_id)
+        if not profile:
+            return {'citation_list': [], 'bins': [], 'counts': []}
+        
+        citation_list = profile.get('citation_list', [])
+        if not citation_list:
+            return {'citation_list': [], 'bins': [], 'counts': []}
+        
+        # Create histogram bins
+        max_cite = max(citation_list) if citation_list else 0
+        
+        # Define bins (0-10, 10-50, 50-100, 100-500, 500+)
+        bins = [0, 10, 50, 100, 500, max_cite + 1]
+        bin_labels = ['0-10', '10-50', '50-100', '100-500', '500+']
+        counts = [0] * 5
+        
+        for cite in citation_list:
+            if cite < 10:
+                counts[0] += 1
+            elif cite < 50:
+                counts[1] += 1
+            elif cite < 100:
+                counts[2] += 1
+            elif cite < 500:
+                counts[3] += 1
+            else:
+                counts[4] += 1
+        
+        return {
+            'citation_list': citation_list,
+            'bins': bin_labels,
+            'counts': counts,
+            'total_pubs': len(citation_list),
+            'avg_citations': sum(citation_list) / len(citation_list) if citation_list else 0,
+            'max_citations': max_cite
+        }
+    
+    def get_national_international_collab(self, author_id: str) -> Dict[str, Any]:
+        """Get national vs international collaboration data for an author."""
+        profile = self.search_by_author_id(author_id)
+        if not profile:
+            return {'national': 0, 'international': 0, 'total': 0, 'details': []}
+        
+        national_count = 0
+        international_count = 0
+        details = []
+        
+        for pub in profile.get('publications', []):
+            countries = pub.get('countries', [])
+            
+            if not countries:
+                # No country info - skip
+                continue
+            
+            # Check if all countries are India
+            india_only = all(c.lower() in ['india'] for c in countries)
+            has_india = any(c.lower() in ['india'] for c in countries)
+            
+            if india_only or (has_india and len(countries) == 1):
+                national_count += 1
+                collab_type = 'National'
+            elif has_india and len(countries) > 1:
+                international_count += 1
+                collab_type = 'International'
+            else:
+                # No India involvement
+                international_count += 1
+                collab_type = 'International'
+            
+            details.append({
+                'title': pub['title'],
+                'year': pub['year'],
+                'countries': countries,
+                'type': collab_type
+            })
+        
+        return {
+            'national': national_count,
+            'international': international_count,
+            'total': national_count + international_count,
+            'details': details
+        }
+    
+    def get_country_collaboration_data(self, author_id: str) -> Dict[str, Any]:
+        """Get country-wise collaboration data for an author (India vs other countries)."""
+        profile = self.search_by_author_id(author_id)
+        if not profile:
+            return {'india_collabs': {}, 'total_pubs_with_countries': 0}
+        
+        # Count collaborations between India and other countries
+        india_collabs = defaultdict(int)
+        total_pubs_with_countries = 0
+        
+        for pub in profile.get('publications', []):
+            countries = pub.get('countries', [])
+            
+            if not countries:
+                continue
+            
+            total_pubs_with_countries += 1
+            
+            # Check if India is involved
+            has_india = any(c.lower() in ['india'] for c in countries)
+            
+            if has_india:
+                # Count collaborations with other countries
+                for country in countries:
+                    if country.lower() != 'india':
+                        india_collabs[country] += 1
+        
+        # Sort by collaboration count
+        sorted_collabs = sorted(india_collabs.items(), key=lambda x: x[1], reverse=True)
+        
+        return {
+            'india_collabs': dict(sorted_collabs),
+            'total_pubs_with_countries': total_pubs_with_countries,
+            'top_countries': sorted_collabs[:10]  # Top 10 collaborating countries
+        }
+    
+    # ============ EXISTING ANALYTICS METHODS (UNCHANGED) ============
+    
+    def get_top_keywords(self, limit: int = 10) -> List[Tuple[str, int]]:
+        """Get top N keywords across all publications."""
+        keyword_counts = defaultdict(int)
+        
+        for pub in self.publications.values():
+            # Count author keywords (highest weight)
+            for kw in pub.get('author_keywords', []):
+                keyword_counts[kw] += 3
+            
+            # Count index keywords
+            for kw in pub.get('index_keywords', []):
+                keyword_counts[kw] += 2
+        
+        # Sort and return top N
+        top_keywords = sorted(keyword_counts.items(), key=lambda x: x[1], reverse=True)
+        return top_keywords[:limit]
+    
+    def get_most_active_authors(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get top N authors by publication count."""
+        author_data = []
+        
+        for author_id, profile in self.author_profiles.items():
+            author_data.append({
+                'author_id': author_id,
+                'name': ', '.join(profile.get('name_variants', ['Unknown'])[:2]),
+                'pub_count': profile.get('pub_count', 0),
+                'total_citations': profile.get('total_citations', 0),
+                'top_keywords': [k for k, _ in profile.get('top_keywords', [])[:3]]
+            })
+        
+        # Sort by publication count
+        author_data.sort(key=lambda x: x['pub_count'], reverse=True)
+        return author_data[:limit]
+    
+    def get_keyword_trend_over_time(self, keyword: str) -> Dict[str, Any]:
+        """Get year-wise publication count for a specific keyword."""
+        keyword_lower = keyword.strip().lower()
+        year_counts = defaultdict(int)
+        matching_pubs = []
+        
+        for pub_id, pub in self.publications.items():
+            # Check if keyword appears in author keywords, index keywords, or abstract
+            found = False
+            
+            # Check author keywords
+            for kw in pub.get('author_keywords', []):
+                if keyword_lower in kw.lower():
+                    found = True
+                    break
+            
+            # Check index keywords
+            if not found:
+                for kw in pub.get('index_keywords', []):
+                    if keyword_lower in kw.lower():
+                        found = True
+                        break
+            
+            # Check abstract
+            if not found:
+                abstract_lower = pub.get('abstract_lower', pub.get('abstract', '').lower())
+                if keyword_lower in abstract_lower:
+                    found = True
+            
+            # Check title
+            if not found:
+                title_lower = pub.get('title', '').lower()
+                if keyword_lower in title_lower:
+                    found = True
+            
+            if found:
+                year = pub.get('year', 0)
+                if year > 1900:
+                    year_counts[year] += 1
+                    matching_pubs.append(pub_id)
+        
+        sorted_years = sorted(year_counts.items())
+        
+        return {
+            'keyword': keyword,
+            'years': [y for y, _ in sorted_years],
+            'counts': [c for _, c in sorted_years],
+            'total_publications': len(matching_pubs),
+            'data': dict(sorted_years)
+        }
 
 
 # Singleton instance

@@ -309,17 +309,70 @@ def main():
     else:
         st.info("ℹ️ Add MISTRAL_API_KEY to Streamlit Secrets for AI features")
 
-    # Main tabs
+    # Main tabs - REORDERED: Author/ID Lookup first
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🔍 Keyword Search",
-        "🎯 Skill-Based Search", 
         "👤 Author/ID Lookup",
+        "🔍 Keyword Search",
+        "🎯 Skill-Based Search",
         "📊 RAG Analysis",
         "📈 Analytics"
     ])
     
-    # ==================== TAB 1: KEYWORD SEARCH ====================
+    # ==================== TAB 1: AUTHOR/ID LOOKUP ====================
     with tab1:
+        st.subheader("Direct Author Lookup")
+        
+        search_type = st.radio(
+            "Search by:",
+            ["Author Name", "Author ID"],
+            horizontal=True,
+            key="lookup_type_radio"
+        )
+        
+        if search_type == "Author ID":
+            author_id_input = st.text_input(
+                "Enter Author ID:",
+                placeholder="e.g., 57192051462",
+                key="author_id_lookup_input"
+            )
+            
+            if st.button("🔍 Lookup Author", key="lookup_by_id_btn"):
+                if author_id_input.strip():
+                    st.session_state.view_mode = 'profile'
+                    st.session_state.viewing_author_id = author_id_input.strip()
+                    st.session_state.viewing_author_name = None
+                    st.rerun()
+        
+        else:  # Author Name
+            author_name_input = st.text_input(
+                "Enter Author Name:",
+                placeholder="e.g., Brindha or Chandiramouli, R.",
+                key="author_name_lookup_input"
+            )
+            
+            if st.button("🔍 Search Name", key="lookup_by_name_btn"):
+                if author_name_input.strip():
+                    results = engine.search_by_author_name(author_name_input.strip())
+                    
+                    if results and results.get('results'):
+                        st.success(f"Found **{results['total']}** matching authors")
+                        
+                        st.write("**Select an author:**")
+                        for idx, r in enumerate(results['results'][:20]):
+                            cols = st.columns([3, 7])
+                            
+                            with cols[0]:
+                                st.code(r['author_id'])
+                            
+                            with cols[1]:
+                                names = ', '.join(r['name_variants'][:2])
+                                st.write(names)
+                    else:
+                        st.warning(f"No results for '{author_name_input}'")
+
+    
+    # ==================== TAB 2: KEYWORD SEARCH ====================
+    with tab2:
         st.subheader("Keyword → Abstract Matching")
         
         keywords_input = st.text_input(
@@ -396,8 +449,8 @@ def main():
                         st.rerun()
 
     
-    # ==================== TAB 2: SKILL-BASED SEARCH ====================
-    with tab2:
+    # ==================== TAB 3: SKILL-BASED SEARCH ====================
+    with tab3:
         st.subheader("Skill-Based Research Discovery")
         
         project_title = st.text_input(
@@ -487,59 +540,6 @@ def main():
                             st.rerun()
 
 
-    # ==================== TAB 3: AUTHOR/ID LOOKUP ====================
-    with tab3:
-        st.subheader("Direct Author Lookup")
-        
-        search_type = st.radio(
-            "Search by:",
-            ["Author ID", "Author Name"],
-            horizontal=True,
-            key="lookup_type_radio"
-        )
-        
-        if search_type == "Author ID":
-            author_id_input = st.text_input(
-                "Enter Author ID:",
-                placeholder="e.g., 57192051462",
-                key="author_id_lookup_input"
-            )
-            
-            if st.button("🔍 Lookup Author", key="lookup_by_id_btn"):
-                if author_id_input.strip():
-                    st.session_state.view_mode = 'profile'
-                    st.session_state.viewing_author_id = author_id_input.strip()
-                    st.session_state.viewing_author_name = None
-                    st.rerun()
-        
-        else:  # Author Name
-            author_name_input = st.text_input(
-                "Enter Author Name:",
-                placeholder="e.g., Brindha or Chandiramouli, R.",
-                key="author_name_lookup_input"
-            )
-            
-            if st.button("🔍 Search Name", key="lookup_by_name_btn"):
-                if author_name_input.strip():
-                    results = engine.search_by_author_name(author_name_input.strip())
-                    
-                    if results and results.get('results'):
-                        st.success(f"Found **{results['total']}** matching authors")
-                        
-                        st.write("**Select an author:**")
-                        for idx, r in enumerate(results['results'][:20]):
-                            cols = st.columns([3, 7])
-                            
-                            with cols[0]:
-                                st.code(r['author_id'])
-                            
-                            with cols[1]:
-                                names = ', '.join(r['name_variants'][:2])
-                                st.write(names)
-                    else:
-                        st.warning(f"No results for '{author_name_input}'")
-
-    
     # ==================== TAB 4: RAG ANALYSIS ====================
     with tab4:
         st.subheader("AI-Powered Research Analysis (Mistral AI)")

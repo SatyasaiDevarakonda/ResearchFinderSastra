@@ -331,7 +331,7 @@ def main():
     # Feature 4
     with st.container():
         st.markdown("#### 📊 RAG Analysis (Mistral AI)")
-        st.write("Uses relevant SASTRA abstracts with Mistral AI to generate grounded research summaries, key insights, research gaps, and future research directions.")
+        st.write("Uses relevant SASTRA abstracts with Mistral AI to generate grounded research summaries, key insights, research gaps, and future research directions. It also displays the most relevant authors along with their corresponding abstracts, ensuring that all AI-generated insights are transparent, traceable, and based entirely on institutional research data.")
     
     st.markdown("<br>", unsafe_allow_html=True)
     

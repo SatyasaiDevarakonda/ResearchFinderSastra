@@ -252,9 +252,9 @@ def main():
         ❌ **Database not found!**
         
         Run preprocessing first:
-```bash
+        ```bash
         python src/preprocess.py
-```
+        ```
         
         Error: {e}
         """)
@@ -297,11 +297,50 @@ def main():
         return
     
     # ========== MAIN VIEW MODE ==========
-    # Stats
-    c1, c2, c3 = st.columns(3)
-    c1.markdown(f'<div class="stat-box"><div class="stat-num">{stats["publications"]:,}</div><div class="stat-label">Publications</div></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="stat-box"><div class="stat-num">{stats["author_ids"]:,}</div><div class="stat-label">Author IDs</div></div>', unsafe_allow_html=True)
-    c3.markdown(f'<div class="stat-box"><div class="stat-num">{stats["name_variants"]:,}</div><div class="stat-label">Name Variants</div></div>', unsafe_allow_html=True)
+    # Publications stat - centered
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        st.markdown(f'<div class="stat-box"><div class="stat-num">{stats["publications"]:,}</div><div class="stat-label">Publications</div></div>', unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Features Overview - Using Streamlit native components
+    st.info("**🌟 Key Features of SASTRA Research Finder**")
+    
+    # Feature 1
+    with st.container():
+        st.markdown("#### 👤 Author / ID Lookup")
+        st.write("Enables search by author name or Author ID and outputs a unified author profile including name variants, publications, citations, affiliations, collaboration stats, and research impact.")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Feature 2
+    with st.container():
+        st.markdown("#### 🔍 Keyword Search")
+        st.write("Searches all research abstracts using user keywords and outputs relevant authors, matched publications, keyword highlights, and document type distribution.")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Feature 3
+    with st.container():
+        st.markdown("#### 🎯 Skill-Based Search")
+        st.write("Extracts skills from a project title and outputs a ranked list of researchers whose expertise closely matches the selected or custom skills.")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Feature 4
+    with st.container():
+        st.markdown("#### 📊 RAG Analysis (Mistral AI)")
+        st.write("Uses relevant SASTRA abstracts with Mistral AI to generate grounded research summaries, key insights, research gaps, and future research directions.")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Feature 5
+    with st.container():
+        st.markdown("#### 📈 Analytics Dashboard")
+        st.write("Aggregates institute-level research data and outputs top keywords, active researchers, collaboration trends, and topic trends over time.")
+    
+    st.divider()
 
     # Mistral status
     if rag.is_available():

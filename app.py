@@ -335,7 +335,7 @@ def main():
     
     with st.container():
         st.markdown("#### 🎨 Thematic Areas")
-        st.write("Analyzes research by thematic domains (30+ themes like Machine Learning, Medical Imaging, Robotics) and ranks top 10 faculty by citation impact in each area. Also identifies high-value interdisciplinary team combinations (67 pre-computed pairs/triplets) showing faculty collaboration opportunities across themes, with teams ranked by total citation score.")
+        st.write("Analyzes research by thematic domains (50+ themes like Machine Learning, Medical Imaging, Robotics) and ranks top 10 faculty by citation impact in each area. Also identifies high-value interdisciplinary team combinations (100+ pre-computed pairs/triplets) showing faculty collaboration opportunities across themes, with teams ranked by total citation score.")
     
     st.divider()
 

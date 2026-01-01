@@ -797,7 +797,7 @@ def main():
         # ===== THEME TAB 1: SINGLE AREAS =====
         with theme_tab1:
             st.markdown(
-    "<p style='font-size: 20px; background-color: #d1ecf1; padding: 12px; border-radius: 5px; border-left: 4px solid #0c5460;'><b style='font-weight: 700;'>Click</b> the theme and <b style='font-weight: 700;'>scroll</b> to View top 10 faculty ranked by total citation score</p>", 
+    "<p style='font-size: 20px; background-color: #d1ecf1; padding: 12px; border-radius: 5px; border-left: 4px solid #0c5460;'><b style='font-weight: 700;'>Click</b> the theme and <b style='font-weight: 700;'>scroll</b> down to View top 10 faculty ranked by total citation score</p>", 
     unsafe_allow_html=True
 )
             

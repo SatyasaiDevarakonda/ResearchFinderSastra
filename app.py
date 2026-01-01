@@ -796,7 +796,10 @@ def main():
         
         # ===== THEME TAB 1: SINGLE AREAS =====
         with theme_tab1:
-            st.info("Click on a theme tile to view top 10 faculty ranked by total citation score")
+            st.markdown(
+    "<p style='font-size: 20px; background-color: #d1ecf1; padding: 12px; border-radius: 5px; border-left: 4px solid #0c5460;'><b style='font-weight: 700;'>Click</b> the theme and <b style='font-weight: 700;'>scroll</b> to View top 10 faculty ranked by total citation score</p>", 
+    unsafe_allow_html=True
+)
             
             single_rankings = load_single_theme_rankings()
             
@@ -920,7 +923,10 @@ def main():
         
         # ===== THEME TAB 2: INTERDISCIPLINARY =====
         with theme_tab2:
-            st.info("Click on a combination tile to view pre-computed teams ranked by citation impact")
+            st.markdown(
+    "<p style='font-size: 20px; background-color: #d1ecf1; padding: 12px; border-radius: 5px; border-left: 4px solid #0c5460;'><b style='font-weight: 700;'>Click</b> on a combination tile and <b style='font-weight: 700;'>scroll</b> down to view pre-computed teams ranked by citation impact</p>", 
+    unsafe_allow_html=True
+)
             
             combos = load_interdisciplinary_combinations()
             
